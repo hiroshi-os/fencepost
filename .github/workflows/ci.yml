@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main", "feat/*" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  lint-and-generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Install staticcheck and protoc plugins
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+      - name: Install buf
+        uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+
+      - name: Run buf lint
+        run: buf lint
+
+      - name: Check buf generate diff
+        run: |
+          buf generate
+          git diff --exit-code
+
+      - name: gofmt check
+        run: |
+          diff -u <(echo -n) <(gofmt -d .)
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: staticcheck
+        run: staticcheck ./...
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fencepost
+          POSTGRES_PASSWORD: fencepost_password
+          POSTGRES_DB: fencepost
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Run migrations
+        run: |
+          PGPASSWORD=fencepost_password psql -h localhost -U fencepost -d fencepost -f migrations/001_initial_schema.up.sql
+
+      - name: Run tests with race detector
+        env:
+          DATABASE_URL: postgres://fencepost:fencepost_password@localhost:5432/fencepost?sslmode=disable
+        run: |
+          go test -p 1 -race -v -timeout 10m ./...
+
+  chaos-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fencepost
+          POSTGRES_PASSWORD: fencepost_password
+          POSTGRES_DB: fencepost
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Run migrations
+        run: |
+          PGPASSWORD=fencepost_password psql -h localhost -U fencepost -d fencepost -f migrations/001_initial_schema.up.sql
+
+      - name: Run Chaos Smoke Test (Fencing ON)
+        env:
+          DATABASE_URL: postgres://fencepost:fencepost_password@localhost:5432/fencepost?sslmode=disable
+        run: |
+          go run ./cmd/chaos -smoke -seed 1 -jobs 1000 -workers 4 -duration 60s
+
+      - name: Run Chaos Smoke Test (Negative Control - No Fencing)
+        env:
+          DATABASE_URL: postgres://fencepost:fencepost_password@localhost:5432/fencepost?sslmode=disable
+        run: |
+          go run ./cmd/chaos -smoke -seed 1 -jobs 1000 -workers 4 -duration 60s -no-fencing
