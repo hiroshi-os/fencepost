@@ -5,6 +5,7 @@ All numbers recorded in this document are strictly measured on real hardware. Ne
 ## Test Environment
 
 - **Date / Timezone**: 2026-10-10 16:05 IST (UTC+05:30)
+- **Commit SHA**: `eec6a32`
 - **Hardware**: AMD Ryzen 5 7530U (6 physical cores, 12 logical threads @ 2.0 GHz base / 4.5 GHz boost)
 - **Memory**: 24 GB DDR4 RAM
 - **Operating System**: Windows 11 Enterprise (build 26100) x86_64
