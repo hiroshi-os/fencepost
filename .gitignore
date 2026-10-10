@@ -1,0 +1,13 @@
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.db
+*.log
+sink.db
+logfile
+data/
+testdata/
+bin/

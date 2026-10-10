@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fencepost-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fencepost
+      POSTGRES_PASSWORD: fencepost_password
+      POSTGRES_DB: fencepost
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fencepost -d fencepost"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  fencepostd:
+    build:
+      context: .
+      dockerfile: Dockerfile.fencepostd
+    container_name: fencepostd
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://fencepost:fencepost_password@postgres:5432/fencepost?sslmode=disable
+      GRPC_ADDR: :50051
+      HTTP_ADDR: :8080
+    ports:
+      - "50051:50051"
+      - "8080:8080"
+
+  sink:
+    build:
+      context: .
+      dockerfile: Dockerfile.sink
+    container_name: fencepost-sink
+    restart: unless-stopped
+    environment:
+      ADDR: :8081
+      DB_PATH: /data/sink.db
+    ports:
+      - "8081:8081"
+    volumes:
+      - sinkdata:/data
+
+volumes:
+  pgdata:
+  sinkdata:
