@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package fencepost.v1;
+
+option go_package = "github.com/hiroshi-os/fencepost/proto/fencepost/v1;fencepostv1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+service Queue {
+  rpc Enqueue(EnqueueRequest) returns (EnqueueResponse);
+  rpc Lease(LeaseRequest) returns (LeaseResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc Complete(CompleteRequest) returns (CompleteResponse);
+  rpc Fail(FailRequest) returns (FailResponse);
+  rpc Cancel(CancelRequest) returns (CancelResponse);
+  rpc Get(GetRequest) returns (GetResponse);
+}
+
+message EnqueueRequest {
+  string queue = 1;
+  bytes payload = 2;
+  google.protobuf.Timestamp run_at = 3;
+  int32 priority = 4;
+  string idempotency_key = 5;
+  int32 max_attempts = 6;
+}
+
+message EnqueueResponse {
+  string job_id = 1;
+  bool deduplicated = 2;
+}
+
+message LeaseRequest {
+  string queue = 1;
+  string worker_id = 2;
+  int32 max_jobs = 3;
+  google.protobuf.Duration lease_ttl = 4;
+  google.protobuf.Duration wait = 5;
+}
+
+message LeasedJob {
+  string id = 1;
+  bytes payload = 2;
+  int32 attempt = 3;
+  int64 fencing_token = 4;
+  google.protobuf.Timestamp lease_expires_at = 5;
+}
+
+message LeaseResponse {
+  repeated LeasedJob jobs = 1;
+}
+
+message HeartbeatRequest {
+  string job_id = 1;
+  int64 fencing_token = 2;
+  google.protobuf.Duration extend = 3;
+}
+
+message HeartbeatResponse {
+  google.protobuf.Timestamp lease_expires_at = 1;
+}
+
+message CompleteRequest {
+  string job_id = 1;
+  int64 fencing_token = 2;
+  bytes result = 3;
+}
+
+message CompleteResponse {
+  bool ok = 1;
+}
+
+message FailRequest {
+  string job_id = 1;
+  int64 fencing_token = 2;
+  string error = 3;
+  bool retryable = 4;
+}
+
+message FailResponse {
+  bool ok = 1;
+}
+
+message CancelRequest {
+  string job_id = 1;
+}
+
+message CancelResponse {
+  bool ok = 1;
+}
+
+message GetRequest {
+  string job_id = 1;
+}
+
+message Job {
+  string id = 1;
+  string queue = 2;
+  bytes payload = 3;
+  int32 priority = 4;
+  google.protobuf.Timestamp run_at = 5;
+  string state = 6;
+  int32 attempts = 7;
+  int32 max_attempts = 8;
+  string lease_owner = 9;
+  google.protobuf.Timestamp lease_expires_at = 10;
+  int64 fencing_token = 11;
+  string idempotency_key = 12;
+  bytes result = 13;
+  string last_error = 14;
+  google.protobuf.Timestamp created_at = 15;
+  google.protobuf.Timestamp updated_at = 16;
+}
+
+message GetResponse {
+  Job job = 1;
+}
